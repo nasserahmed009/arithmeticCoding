@@ -1,8 +1,6 @@
 import numpy as np
 import cv2
-from decimal import *
 import pickle
-getcontext().prec = 60
 
 # I needed a function like this to help me trace the progress of the encoding and decoding
 # so I search and get it from an answer on stackoverflow. It's just a utility function
@@ -25,6 +23,9 @@ while not validImageName:
         validImageName = True 
     except:
         print("❌ Can't find this file, Please enter a valid file name")
+    
+imgOriginal = img
+img = img.flatten();
 
 validBlockSize = False
 while not validBlockSize:
@@ -35,8 +36,31 @@ while not validBlockSize:
     except:
         print("❌ This blocksize isn't valid, Please enter an intger")
 
-imgOriginal = img
-img = img.flatten();
+
+validDataType = False
+while not validDataType:
+    try:
+        print("⚙️ Choose the preferred datatype [1,2 or 3] : ")
+        print("1. float16")
+        print("2. float32")
+        print("3. float64")
+
+        dataType = input("Datatype : ")
+        dataType = int(dataType)
+        if( dataType > 3 or dataType < 1 ):
+            raise Exception("Can't find this dataType")
+        validDataType = True 
+    except:
+        print("❌ This datatype is not valid please enter 1, 2 or 3")
+
+    
+if(dataType == 1):
+    dataType = 'float16'
+elif(dataType == 2):
+    dataType = 'float32'
+else:
+    dataType = 'float64'
+
 
 probabilities = {}
 totalPixels = len(img)
@@ -51,7 +75,7 @@ for colorDegree in img:
         probabilities[colorDegree] = 1
 
 for colorDegree in probabilities:
-  probabilities[colorDegree] = Decimal( probabilities[colorDegree] ) / Decimal( totalPixels )
+  probabilities[colorDegree] = probabilities[colorDegree] / totalPixels 
 
 
 # a function that takes a symbol and the probability dictionary and returns the cumulative probability
@@ -83,13 +107,16 @@ def arithmeticCode(sentence, prevLowerLimit, prevUpperLimit, probabilitiesDic, c
     currentUpperLimit = prevLowerLimit + ( prevUpperLimit - prevLowerLimit )*cumulativeProbDic[ sentence[0] ][1]
     
     if( len(sentence) == 1 ):
-        return ( currentLowerLimit + currentUpperLimit ) / Decimal(2)
+        return ( currentLowerLimit + currentUpperLimit ) / 2
     else:
         return arithmeticCode(sentence[1:], currentLowerLimit, currentUpperLimit, probabilitiesDic, cumulativeProbDic)
-    
-tags=[]
-for x in imgReshaped:
-    tags.append( arithmeticCode(x, Decimal(0), Decimal(1), probabilities, cumulativeProbDic) )
+
+
+tags=np.zeros(len(imgReshaped), dtype=dataType)
+imgReshapedLength = len(imgReshaped)
+for index, block in enumerate(imgReshaped):
+    printProgressBar(index+1, imgReshapedLength, prefix = ' Progress:', suffix = 'Complete', length = 50)
+    tags[index] = arithmeticCode(block, 0, 1, probabilities, cumulativeProbDic) 
 
 
 print('⏳Generating files to be used by decoder ...')
@@ -100,5 +127,7 @@ file.close()
 
 
 # output the image info file
-imgInfo = np.array( [imgOriginal.shape] + [blockSize] + [zerosAtEnd] + tags  )
-np.save( 'imageInfo.npy',  imgInfo)
+# imgInfo = np.array( [imgOriginal.shape] + [blockSize] + [zerosAtEnd] + tags  )
+np.save( 'imageInfo.npy', np.array([imgOriginal.shape] + [blockSize] + [zerosAtEnd]) )
+np.save( 'tags.npy',  tags)
+
